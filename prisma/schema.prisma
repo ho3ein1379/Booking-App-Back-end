@@ -1,0 +1,176 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  role      UserRole @default(CUSTOMER)
+  
+  // Relations
+  business  Business?
+  bookings  Booking[]
+  payments  Payment[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  CUSTOMER
+  BUSINESS_OWNER
+  ADMIN
+}
+
+model Business {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  name        String
+  description String?
+  category    String   // barber, bakery, mechanic, etc
+  phone       String
+  email       String
+  address     String
+  city        String
+  image       String?  // business logo/image
+  
+  // Operating hours
+  openTime    String   @default("09:00") // HH:mm
+  closeTime   String   @default("18:00") // HH:mm
+  
+  // Settings
+  slotDuration  Int     @default(30) // minutes
+  maxBookingsPerSlot Int @default(1)
+  
+  // Relations
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  services    Service[]
+  bookings    Booking[]
+  slots       TimeSlot[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  description String?
+  duration    Int      // minutes
+  price       Float
+  
+  // Relations
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings    Booking[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([businessId])
+}
+
+model TimeSlot {
+  id          String   @id @default(cuid())
+  businessId  String
+  date        DateTime @db.Date
+  startTime   String   // HH:mm
+  endTime     String   // HH:mm
+  isAvailable Boolean  @default(true)
+  
+  // Relations
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings    Booking[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([businessId, date, startTime])
+  @@index([businessId, date])
+}
+
+model Booking {
+  id          String   @id @default(cuid())
+  businessId  String
+  customerId  String
+  serviceId   String
+  slotId      String
+  
+  status      BookingStatus @default(PENDING)
+  startTime   DateTime
+  endTime     DateTime
+  
+  customerName String
+  customerPhone String
+  
+  // Relations
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer    User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  service     Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  slot        TimeSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  payment     Payment?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([businessId, status])
+  @@index([customerId])
+  @@index([slotId])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  bookingId   String   @unique
+  userId      String
+  
+  amount      Float
+  currency    String   @default("USD")
+  status      PaymentStatus @default(PENDING)
+  
+  stripePaymentIntentId String?
+  method      PaymentMethod @default(CREDIT_CARD)
+  
+  // Relations
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([userId, status])
+  @@index([bookingId])
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  WALLET
+}
