@@ -1,14 +1,10 @@
-import { Router, Response, NextFunction } from "express";
-import { prisma } from "../lib/prisma";
-import {
-  authMiddleware,
-  AuthenticatedRequest,
-  requireRole,
-} from "../utils/auth";
-import { NotFoundError, ValidationError } from "../utils/errors";
-import { z } from "zod";
+import { Router, Response, NextFunction, type Router as ExpressRouter } from 'express';
+import { prisma } from '../lib/prisma';
+import { authMiddleware, AuthenticatedRequest, requireRole } from '../utils/auth';
+import { NotFoundError, ValidationError } from '../utils/errors';
+import { z } from 'zod';
 
-const router = Router();
+const router: ExpressRouter = Router();
 
 const createBookingSchema = z.object({
   businessId: z.string(),
@@ -19,16 +15,16 @@ const createBookingSchema = z.object({
 });
 
 const updateBookingStatusSchema = z.object({
-  status: z.enum(["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"]),
+  status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED']),
 });
 
 // Create booking
 router.post(
-  "/",
+  '/',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const body = createBookingSchema.parse(req.body);
 
@@ -38,14 +34,14 @@ router.post(
       });
 
       if (!slot || !slot.isAvailable) {
-        throw new ValidationError("This slot is not available");
+        return new ValidationError('This slot is not available');
       }
 
       // Check number of bookings for this slot
       const bookingCount = await prisma.booking.count({
         where: {
           slotId: body.slotId,
-          status: { not: "CANCELLED" },
+          status: { not: 'CANCELLED' },
         },
       });
 
@@ -54,11 +50,11 @@ router.post(
       });
 
       if (!business) {
-        throw new NotFoundError("Business not found");
+        return new NotFoundError('Business not found');
       }
 
       if (bookingCount >= business.maxBookingsPerSlot) {
-        throw new ValidationError("This slot is fully booked");
+        return new ValidationError('This slot is fully booked');
       }
 
       // Get service details for timing
@@ -67,11 +63,11 @@ router.post(
       });
 
       if (!service) {
-        throw new NotFoundError("Service not found");
+        return new NotFoundError('Service not found');
       }
 
       // Calculate start and end times
-      const [startHour, startMinute] = slot.startTime.split(":").map(Number);
+      const [startHour, startMinute] = slot.startTime.split(':').map(Number);
       const startTime = new Date(slot.date);
       startTime.setHours(startHour, startMinute, 0);
 
@@ -88,7 +84,7 @@ router.post(
           customerPhone: body.customerPhone,
           startTime,
           endTime,
-          status: "PENDING",
+          status: 'PENDING',
         },
         include: {
           service: true,
@@ -97,7 +93,7 @@ router.post(
       });
 
       res.status(201).json({
-        message: "Booking created successfully",
+        message: 'Booking created successfully',
         booking,
       });
     } catch (error) {
@@ -108,11 +104,11 @@ router.post(
 
 // Get my bookings (customer)
 router.get(
-  "/my-bookings",
+  '/my-bookings',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const bookings = await prisma.booking.findMany({
         where: { customerId: req.user.id },
@@ -120,7 +116,7 @@ router.get(
           service: true,
           business: true,
         },
-        orderBy: { startTime: "desc" },
+        orderBy: { startTime: 'desc' },
       });
 
       res.json(bookings);
@@ -132,12 +128,12 @@ router.get(
 
 // Get business bookings
 router.get(
-  "/business/:businessId",
+  '/business/:businessId',
   authMiddleware,
-  requireRole(["BUSINESS_OWNER"]),
+  requireRole(['BUSINESS_OWNER']),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const { businessId } = req.params;
 
@@ -147,7 +143,7 @@ router.get(
       });
 
       if (!business || business.userId !== req.user.id) {
-        throw new ValidationError("Unauthorized");
+        return new ValidationError('Unauthorized');
       }
 
       const bookings = await prisma.booking.findMany({
@@ -163,7 +159,7 @@ router.get(
           },
           service: true,
         },
-        orderBy: { startTime: "asc" },
+        orderBy: { startTime: 'asc' },
       });
 
       res.json(bookings);
@@ -175,11 +171,11 @@ router.get(
 
 // Update booking status
 router.patch(
-  "/:bookingId/status",
+  '/:bookingId/status',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const { bookingId } = req.params;
       const body = updateBookingStatusSchema.parse(req.body);
@@ -190,15 +186,12 @@ router.patch(
       });
 
       if (!booking) {
-        throw new NotFoundError("Booking not found");
+        return new NotFoundError('Booking not found');
       }
 
       // Verify authorization (owner or customer)
-      if (
-        booking.business.userId !== req.user.id &&
-        booking.customerId !== req.user.id
-      ) {
-        throw new ValidationError("Unauthorized");
+      if (booking.business.userId !== req.user.id && booking.customerId !== req.user.id) {
+        return new ValidationError('Unauthorized');
       }
 
       const updatedBooking = await prisma.booking.update({
@@ -211,7 +204,7 @@ router.patch(
       });
 
       res.json({
-        message: "Booking status updated",
+        message: 'Booking status updated',
         booking: updatedBooking,
       });
     } catch (error) {
@@ -222,11 +215,11 @@ router.patch(
 
 // Cancel booking
 router.delete(
-  "/:bookingId",
+  '/:bookingId',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const { bookingId } = req.params;
 
@@ -235,20 +228,20 @@ router.delete(
       });
 
       if (!booking) {
-        throw new NotFoundError("Booking not found");
+        return new NotFoundError('Booking not found');
       }
 
-      if (booking.customerId !== req.user.id && booking.status !== "PENDING") {
-        throw new ValidationError("You cannot cancel this booking");
+      if (booking.customerId !== req.user.id && booking.status !== 'PENDING') {
+        return new ValidationError('You cannot cancel this booking');
       }
 
       await prisma.booking.update({
         where: { id: bookingId },
-        data: { status: "CANCELLED" },
+        data: { status: 'CANCELLED' },
       });
 
       res.json({
-        message: "Booking cancelled successfully",
+        message: 'Booking cancelled successfully',
       });
     } catch (error) {
       next(error);

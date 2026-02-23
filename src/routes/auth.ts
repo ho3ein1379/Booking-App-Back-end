@@ -1,16 +1,11 @@
-import { Router, Request, Response, NextFunction } from "express";
-import bcrypt from "bcryptjs";
-import { prisma } from "../lib/prisma";
-import { generateToken, authMiddleware, AuthenticatedRequest } from "../utils/auth";
-import {
-  ValidationError,
-  AuthenticationError,
-  ConflictError,
-  NotFoundError,
-} from "../utils/errors";
-import { z } from "zod";
+import { Router, Request, Response, NextFunction, type Router as ExpressRouter } from 'express';
+import bcrypt from 'bcryptjs';
+import { prisma } from '../lib/prisma';
+import { generateToken, authMiddleware, AuthenticatedRequest } from '../utils/auth';
+import { AuthenticationError, ConflictError, NotFoundError } from '../utils/errors';
+import { z } from 'zod';
 
-const router = Router();
+const router: ExpressRouter = Router();
 
 // Validation schemas
 const registerSchema = z.object({
@@ -27,7 +22,7 @@ const loginSchema = z.object({
 });
 
 // Register
-router.post("/register", async (req: Request, res: Response, next: NextFunction) => {
+router.post('/register', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const body = registerSchema.parse(req.body);
 
@@ -37,7 +32,7 @@ router.post("/register", async (req: Request, res: Response, next: NextFunction)
     });
 
     if (existingUser) {
-      throw new ConflictError("Email already registered");
+      return new ConflictError('Email already registered');
     }
 
     // Hash password
@@ -61,7 +56,7 @@ router.post("/register", async (req: Request, res: Response, next: NextFunction)
     });
 
     res.status(201).json({
-      message: "User registered successfully",
+      message: 'User registered successfully',
       user: {
         id: user.id,
         email: user.email,
@@ -77,7 +72,7 @@ router.post("/register", async (req: Request, res: Response, next: NextFunction)
 });
 
 // Login
-router.post("/login", async (req: Request, res: Response, next: NextFunction) => {
+router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const body = loginSchema.parse(req.body);
 
@@ -86,13 +81,13 @@ router.post("/login", async (req: Request, res: Response, next: NextFunction) =>
     });
 
     if (!user) {
-      throw new AuthenticationError("Invalid email or password");
+      return new AuthenticationError('Invalid email or password');
     }
 
     const isPasswordValid = await bcrypt.compare(body.password, user.password);
 
     if (!isPasswordValid) {
-      throw new AuthenticationError("Invalid email or password");
+      return new AuthenticationError('Invalid email or password');
     }
 
     const token = generateToken({
@@ -102,7 +97,7 @@ router.post("/login", async (req: Request, res: Response, next: NextFunction) =>
     });
 
     res.json({
-      message: "Login successful",
+      message: 'Login successful',
       user: {
         id: user.id,
         email: user.email,
@@ -119,12 +114,12 @@ router.post("/login", async (req: Request, res: Response, next: NextFunction) =>
 
 // Get current user
 router.get(
-  "/me",
+  '/me',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
-        throw new AuthenticationError();
+        return new AuthenticationError();
       }
 
       const user = await prisma.user.findUnique({
@@ -141,7 +136,7 @@ router.get(
       });
 
       if (!user) {
-        throw new NotFoundError("User not found");
+        return new NotFoundError('User not found');
       }
 
       res.json(user);

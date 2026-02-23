@@ -1,14 +1,16 @@
-import { Router, Response, NextFunction } from "express";
-import { prisma } from "../lib/prisma";
 import {
-  authMiddleware,
-  AuthenticatedRequest,
-  requireRole,
-} from "../utils/auth";
-import { NotFoundError, ValidationError } from "../utils/errors";
-import { z } from "zod";
+  Router,
+  Response,
+  NextFunction,
+  Request as ExpressRequest,
+  type Router as ExpressRouter,
+} from 'express';
+import { prisma } from '../lib/prisma';
+import { authMiddleware, AuthenticatedRequest, requireRole } from '../utils/auth';
+import { NotFoundError, ValidationError } from '../utils/errors';
+import { z } from 'zod';
 
-const router = Router({ mergeParams: true });
+const router: ExpressRouter = Router({ mergeParams: true });
 
 const createServiceSchema = z.object({
   name: z.string().min(1),
@@ -21,12 +23,12 @@ const updateServiceSchema = createServiceSchema.partial();
 
 // Create service
 router.post(
-  "/",
+  '/',
   authMiddleware,
-  requireRole(["BUSINESS_OWNER"]),
+  requireRole(['BUSINESS_OWNER']),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const { businessId } = req.params;
 
@@ -36,11 +38,11 @@ router.post(
       });
 
       if (!business) {
-        throw new NotFoundError("Business not found");
+        return new NotFoundError('Business not found');
       }
 
       if (business.userId !== req.user.id) {
-        throw new ValidationError("You can only add services to your business");
+        return new ValidationError('You can only add services to your business');
       }
 
       const body = createServiceSchema.parse(req.body);
@@ -53,7 +55,7 @@ router.post(
       });
 
       res.status(201).json({
-        message: "Service created successfully",
+        message: 'Service created successfully',
         service,
       });
     } catch (error) {
@@ -63,28 +65,31 @@ router.post(
 );
 
 // Get all services for a business
-router.get("/", async (req: Response, next: NextFunction) => {
-  try {
-    const { businessId } = req.params;
+router.get(
+  '/',
+  async (req: ExpressRequest<{ businessId: string }>, res: Response, next: NextFunction) => {
+    try {
+      const { businessId } = req.params;
 
-    const services = await prisma.service.findMany({
-      where: { businessId },
-    });
+      const services = await prisma.service.findMany({
+        where: { businessId },
+      });
 
-    res.json(services);
-  } catch (error) {
-    next(error);
+      res.json(services);
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 // Update service
 router.put(
-  "/:serviceId",
+  '/:serviceId',
   authMiddleware,
-  requireRole(["BUSINESS_OWNER"]),
+  requireRole(['BUSINESS_OWNER']),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const { businessId, serviceId } = req.params;
 
@@ -94,7 +99,7 @@ router.put(
       });
 
       if (!business || business.userId !== req.user.id) {
-        throw new ValidationError("Unauthorized");
+        return new ValidationError('Unauthorized');
       }
 
       const service = await prisma.service.findUnique({
@@ -102,7 +107,7 @@ router.put(
       });
 
       if (!service || service.businessId !== businessId) {
-        throw new NotFoundError("Service not found");
+        return new NotFoundError('Service not found');
       }
 
       const body = updateServiceSchema.parse(req.body);
@@ -113,7 +118,7 @@ router.put(
       });
 
       res.json({
-        message: "Service updated successfully",
+        message: 'Service updated successfully',
         service: updatedService,
       });
     } catch (error) {
@@ -124,12 +129,12 @@ router.put(
 
 // Delete service
 router.delete(
-  "/:serviceId",
+  '/:serviceId',
   authMiddleware,
-  requireRole(["BUSINESS_OWNER"]),
+  requireRole(['BUSINESS_OWNER']),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const { businessId, serviceId } = req.params;
 
@@ -139,7 +144,7 @@ router.delete(
       });
 
       if (!business || business.userId !== req.user.id) {
-        throw new ValidationError("Unauthorized");
+        return new ValidationError('Unauthorized');
       }
 
       const service = await prisma.service.findUnique({
@@ -147,7 +152,7 @@ router.delete(
       });
 
       if (!service || service.businessId !== businessId) {
-        throw new NotFoundError("Service not found");
+        return new NotFoundError('Service not found');
       }
 
       await prisma.service.delete({
@@ -155,7 +160,7 @@ router.delete(
       });
 
       res.json({
-        message: "Service deleted successfully",
+        message: 'Service deleted successfully',
       });
     } catch (error) {
       next(error);

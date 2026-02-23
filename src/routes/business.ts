@@ -1,14 +1,16 @@
-import { Router, Response, NextFunction } from "express";
-import { prisma } from "../lib/prisma";
 import {
-  authMiddleware,
-  AuthenticatedRequest,
-  requireRole,
-} from "../utils/auth";
-import { NotFoundError, ConflictError, ValidationError } from "../utils/errors";
-import { z } from "zod";
+  Router,
+  Response,
+  NextFunction,
+  Request as ExpressRequest,
+  type Router as ExpressRouter,
+} from 'express';
+import { prisma } from '../lib/prisma';
+import { authMiddleware, AuthenticatedRequest, requireRole } from '../utils/auth';
+import { NotFoundError, ConflictError, ValidationError } from '../utils/errors';
+import { z } from 'zod';
 
-const router = Router();
+const router: ExpressRouter = Router();
 
 // Validation schemas
 const createBusinessSchema = z.object({
@@ -19,8 +21,8 @@ const createBusinessSchema = z.object({
   email: z.string().email(),
   address: z.string(),
   city: z.string(),
-  openTime: z.string().default("09:00"),
-  closeTime: z.string().default("18:00"),
+  openTime: z.string().default('09:00'),
+  closeTime: z.string().default('18:00'),
   slotDuration: z.number().default(30),
 });
 
@@ -28,12 +30,12 @@ const updateBusinessSchema = createBusinessSchema.partial();
 
 // Create business
 router.post(
-  "/",
+  '/',
   authMiddleware,
-  requireRole(["CUSTOMER"]),
+  requireRole(['CUSTOMER']),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       // Check if user already has a business
       const existingBusiness = await prisma.business.findUnique({
@@ -41,7 +43,7 @@ router.post(
       });
 
       if (existingBusiness) {
-        throw new ConflictError("You already have a business. Update it instead.");
+        return new ConflictError('You already have a business. Update it instead.');
       }
 
       const body = createBusinessSchema.parse(req.body);
@@ -56,11 +58,11 @@ router.post(
 
       await prisma.user.update({
         where: { id: req.user.id },
-        data: { role: "BUSINESS_OWNER" },
+        data: { role: 'BUSINESS_OWNER' },
       });
 
       res.status(201).json({
-        message: "Business created successfully",
+        message: 'Business created successfully',
         business,
       });
     } catch (error) {
@@ -71,11 +73,11 @@ router.post(
 
 // Get my business
 router.get(
-  "/my-business",
+  '/my-business',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const business = await prisma.business.findUnique({
         where: { userId: req.user.id },
@@ -83,13 +85,13 @@ router.get(
           services: true,
           bookings: {
             take: 10,
-            orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: 'desc' },
           },
         },
       });
 
       if (!business) {
-        throw new NotFoundError("Business not found");
+        return new NotFoundError('Business not found');
       }
 
       res.json(business);
@@ -101,19 +103,17 @@ router.get(
 
 // Get business by ID (public)
 router.get(
-  "/:id",
-  async (req: Response, next: NextFunction) => {
+  '/:id',
+  async (req: ExpressRequest<{ id: string }>, res: Response, next: NextFunction) => {
     try {
+      const id = req.params.id;
+
       const business = await prisma.business.findUnique({
-        where: { id: req.params.id },
-        include: {
-          services: true,
-        },
+        where: { id },
+        include: { services: true },
       });
 
-      if (!business) {
-        throw new NotFoundError("Business not found");
-      }
+      if (!business) return new NotFoundError('Business not found');
 
       res.json(business);
     } catch (error) {
@@ -124,12 +124,12 @@ router.get(
 
 // Update business
 router.put(
-  "/:id",
+  '/:id',
   authMiddleware,
-  requireRole(["BUSINESS_OWNER"]),
+  requireRole(['BUSINESS_OWNER']),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       // Verify ownership
       const business = await prisma.business.findUnique({
@@ -137,11 +137,11 @@ router.put(
       });
 
       if (!business) {
-        throw new NotFoundError("Business not found");
+        return new NotFoundError('Business not found');
       }
 
       if (business.userId !== req.user.id) {
-        throw new ValidationError("You can only update your own business");
+        return new ValidationError('You can only update your own business');
       }
 
       const body = updateBusinessSchema.parse(req.body);
@@ -152,7 +152,7 @@ router.put(
       });
 
       res.json({
-        message: "Business updated successfully",
+        message: 'Business updated successfully',
         business: updatedBusiness,
       });
     } catch (error) {
