@@ -1,14 +1,16 @@
-import { Router, Response, NextFunction } from "express";
-import { prisma } from "../lib/prisma";
 import {
-  authMiddleware,
-  AuthenticatedRequest,
-  requireRole,
-} from "../utils/auth";
-import { NotFoundError, ValidationError } from "../utils/errors";
-import { z } from "zod";
+  Router,
+  Response,
+  NextFunction,
+  Request as ExpressRequest,
+  type Router as ExpressRouter,
+} from 'express';
+import { prisma } from '../lib/prisma';
+import { authMiddleware, AuthenticatedRequest, requireRole } from '../utils/auth';
+import { NotFoundError, ValidationError } from '../utils/errors';
+import { z } from 'zod';
 
-const router = Router();
+const router: ExpressRouter = Router();
 
 const createSlotsSchema = z.object({
   businessId: z.string(),
@@ -21,20 +23,20 @@ const createSlotsSchema = z.object({
   ),
 });
 
-const getAvailableSlotsSchema = z.object({
+/*const getAvailableSlotsSchema = z.object({
   businessId: z.string(),
   date: z.string().optional(),
   serviceId: z.string(),
-});
+});*/
 
 // Create time slots (business owner)
 router.post(
-  "/",
+  '/',
   authMiddleware,
-  requireRole(["BUSINESS_OWNER"]),
+  requireRole(['BUSINESS_OWNER']),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const body = createSlotsSchema.parse(req.body);
 
@@ -44,14 +46,14 @@ router.post(
       });
 
       if (!business || business.userId !== req.user.id) {
-        throw new ValidationError("Unauthorized");
+        return new ValidationError('Unauthorized');
       }
 
       // Create slots
       const date = new Date(body.date);
 
       const createdSlots = await Promise.all(
-        body.slots.map((slot) =>
+        body.slots.map(slot =>
           prisma.timeSlot.create({
             data: {
               businessId: body.businessId,
@@ -75,13 +77,13 @@ router.post(
 
 // Get available slots
 router.get(
-  "/available",
-  async (req: Response, next: NextFunction) => {
+  '/available',
+  async (req: ExpressRequest<{ id: string }>, res: Response, next: NextFunction) => {
     try {
       const { businessId, date, serviceId } = req.query;
 
       if (!businessId || !serviceId) {
-        throw new ValidationError("businessId and serviceId are required");
+        return new ValidationError('businessId and serviceId are required');
       }
 
       // Get service to calculate required duration
@@ -90,10 +92,10 @@ router.get(
       });
 
       if (!service) {
-        throw new NotFoundError("Service not found");
+        return new NotFoundError('Service not found');
       }
 
-      let query: any = {
+      const query: any = {
         businessId: businessId as string,
         isAvailable: true,
       };
@@ -123,16 +125,16 @@ router.get(
 
       const slots = await prisma.timeSlot.findMany({
         where: query,
-        orderBy: [{ date: "asc" }, { startTime: "asc" }],
+        orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
       });
 
       // Filter slots that have availability
       const availableSlots = await Promise.all(
-        slots.map(async (slot) => {
+        slots.map(async slot => {
           const bookingCount = await prisma.booking.count({
             where: {
               slotId: slot.id,
-              status: { not: "CANCELLED" },
+              status: { not: 'CANCELLED' },
             },
           });
 
@@ -157,12 +159,12 @@ router.get(
 
 // Delete slot
 router.delete(
-  "/:slotId",
+  '/:slotId',
   authMiddleware,
-  requireRole(["BUSINESS_OWNER"]),
+  requireRole(['BUSINESS_OWNER']),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new ValidationError("User not authenticated");
+      if (!req.user) return new ValidationError('User not authenticated');
 
       const { slotId } = req.params;
 
@@ -171,7 +173,7 @@ router.delete(
       });
 
       if (!slot) {
-        throw new NotFoundError("Slot not found");
+        return new NotFoundError('Slot not found');
       }
 
       // Verify ownership
@@ -180,19 +182,19 @@ router.delete(
       });
 
       if (business?.userId !== req.user.id) {
-        throw new ValidationError("Unauthorized");
+        return new ValidationError('Unauthorized');
       }
 
       // Check if slot has any bookings
       const bookingCount = await prisma.booking.count({
         where: {
           slotId,
-          status: { not: "CANCELLED" },
+          status: { not: 'CANCELLED' },
         },
       });
 
       if (bookingCount > 0) {
-        throw new ValidationError("Cannot delete slot with active bookings");
+        return new ValidationError('Cannot delete slot with active bookings');
       }
 
       await prisma.timeSlot.delete({
@@ -200,7 +202,7 @@ router.delete(
       });
 
       res.json({
-        message: "Slot deleted successfully",
+        message: 'Slot deleted successfully',
       });
     } catch (error) {
       next(error);
