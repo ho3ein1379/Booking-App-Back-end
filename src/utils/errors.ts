@@ -10,35 +10,38 @@ export class AppError extends Error {
 }
 
 export class ValidationError extends AppError {
-  constructor(message: string, public errors?: Record<string, string[]>) {
+  constructor(
+    message: string,
+    public errors?: Record<string, string[]>
+  ) {
     super(400, message);
     Object.setPrototypeOf(this, ValidationError.prototype);
   }
 }
 
 export class AuthenticationError extends AppError {
-  constructor(message: string = "Authentication failed") {
+  constructor(message: string = 'Authentication failed') {
     super(401, message);
     Object.setPrototypeOf(this, AuthenticationError.prototype);
   }
 }
 
 export class AuthorizationError extends AppError {
-  constructor(message: string = "Access denied") {
+  constructor(message: string = 'Access denied') {
     super(403, message);
     Object.setPrototypeOf(this, AuthorizationError.prototype);
   }
 }
 
 export class NotFoundError extends AppError {
-  constructor(message: string = "Resource not found") {
+  constructor(message: string = 'Resource not found') {
     super(404, message);
     Object.setPrototypeOf(this, NotFoundError.prototype);
   }
 }
 
 export class ConflictError extends AppError {
-  constructor(message: string = "Resource already exists") {
+  constructor(message: string = 'Resource already exists') {
     super(409, message);
     Object.setPrototypeOf(this, ConflictError.prototype);
   }
